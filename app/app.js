@@ -1391,6 +1391,7 @@ function vMfa(){ return authShell(`<h1>Code de sécurité</h1>
     <p class="muted" style="margin:0;font-size:13px">Téléphone perdu ou changé ? Écrivez à contact@tontonbusiness.com depuis l'adresse e-mail de votre compte.</p>
     <button type="button" class="linkbtn" data-act="logout">Se déconnecter</button>`); }
 async function ouvrirSecurite(){
+  if(S.entreprise && S.entreprise.id==="de000000-0000-4000-8000-000000000001"){ toast("La double authentification n'est pas disponible sur le compte de démonstration, partagé entre plusieurs visiteurs."); return; }
   const {data,error}=await sb.auth.mfa.listFactors(); if(error){ toast(errMsg(error)); return; }
   const actif=((data&&data.totp)||[])[0];
   if(actif){ openModal(`<h2>Sécurité du compte</h2>
