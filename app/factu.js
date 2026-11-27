@@ -373,10 +373,13 @@ function actStats(condId, from, to){
     bl:fin.filter(c=>(c.docs||[]).some(d=>d.type==="bl")).length, sig:fin.filter(c=>c.signataire).length, joursTrav:Object.keys(jours).length, ...absences(condId,from,to,jours) };
 }
 // Repos saisis au planning (« Mettre en repos ») et jours ouvrés (lundi-vendredi, jusqu'à aujourd'hui) sans course ni repos
+// jours fériés en France (fixes + Pâques, Ascension, Pentecôte)
+function feries(y){ const a=y%19,b=Math.floor(y/100),c=y%100,d=Math.floor(b/4),e=b%4,f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3),h=(19*a+b-d-g+15)%30,i=Math.floor(c/4),k=c%4,l=(32+2*e+2*i-h-k)%7,m=Math.floor((a+11*h+22*l)/451),mo=Math.floor((h+l-7*m+114)/31),j=((h+l-7*m+114)%31)+1;
+  const paq=`${y}-${pad2(mo)}-${pad2(j)}`; return new Set([`${y}-01-01`,`${y}-05-01`,`${y}-05-08`,`${y}-07-14`,`${y}-08-15`,`${y}-11-01`,`${y}-11-11`,`${y}-12-25`,T.addDays(paq,1),T.addDays(paq,39),T.addDays(paq,50)]); }
 function absences(condId, from, to, jours){
   const k=S.conducteurs.find(c=>c.id===condId)||{}; const repos=(Array.isArray(k.repos)?k.repos:[]).filter(d=>d>=from&&d<=to).sort();
   const fin=to<T.todayIso()?to:T.todayIso(), sans=[];
-  for(let d=from; d<=fin; d=T.addDays(d,1)){ const [y,m,j]=d.split("-").map(Number); const wd=new Date(y,m-1,j).getDay(); if(wd>=1&&wd<=5&&!jours[d]&&!repos.includes(d)) sans.push(d); }
+  for(let d=from; d<=fin; d=T.addDays(d,1)){ const [y,m,j]=d.split("-").map(Number); const wd=new Date(y,m-1,j).getDay(); if(wd>=1&&wd<=5&&!jours[d]&&!repos.includes(d)&&!feries(y).has(d)) sans.push(d); }
   return { repos, sans };
 }
 const listeJours = L => L.map(d=>frDate(d,{weekday:"short",day:"numeric",month:"short"})).join(", ");
@@ -392,7 +395,7 @@ T.views.activite = () => {
   if(!k){ const rows=conds.map(c=>({c,s:actStats(c.id,P.from,P.to)}));
     const tot=rows.reduce((t,r)=>({n:t.n+r.s.fin.length,ca:t.ca+r.s.ca,km:t.km+r.s.km}),{n:0,ca:0,km:0});
     corps=`<div class="kpis"><div class="kpi"><small>Courses terminées</small><b class="num">${tot.n}</b></div><div class="kpi"><small>Chiffre d'affaires HT</small><b class="num">${money(tot.ca)}</b></div>${kmActif()?`<div class="kpi"><small>Kilomètres en charge</small><b class="num">${kmTxt(tot.km)}</b></div>`:""}<div class="kpi"><small>Chauffeurs actifs sur la période</small><b class="num">${rows.filter(r=>r.s.L.length).length} / ${conds.length}</b></div></div>
-    <div class="pan"><h2>Comparatif — ${esc(P.txt)}</h2><div class="tbl-wrap"><table><thead><tr><th>Chauffeur</th><th>Jours travaillés</th><th>Jours de repos</th><th title="Lundi au vendredi, sans course ni repos saisi">Jours sans activité</th><th>Courses terminées</th><th>Restant à faire</th><th style="text-align:right">CA HT</th>${kmActif()?`<th style="text-align:right">Km en charge</th><th style="text-align:right">CA / km</th>`:""}<th>Retards</th><th>Réserves</th><th>Problèmes signalés</th><th>BL manquants</th></tr></thead><tbody>
+    <div class="pan"><h2>Comparatif — ${esc(P.txt)}</h2><div class="tbl-wrap"><table><thead><tr><th>Chauffeur</th><th>Jours travaillés</th><th>Jours de repos</th><th title="Lundi au vendredi hors jours fériés, sans course ni repos saisi">Jours sans activité</th><th>Courses terminées</th><th>Restant à faire</th><th style="text-align:right">CA HT</th>${kmActif()?`<th style="text-align:right">Km en charge</th><th style="text-align:right">CA / km</th>`:""}<th>Retards</th><th>Réserves</th><th>Problèmes signalés</th><th>BL manquants</th></tr></thead><tbody>
     ${rows.map(({c,s})=>`<tr class="click" tabindex="0" data-f="actpick" data-id="${esc(c.id)}"><td><b>${esc(c.nom)}</b></td><td class="num">${s.joursTrav}</td><td class="num">${s.repos.length}</td><td class="num">${s.sans.length}</td><td class="num">${s.fin.length}</td><td class="num">${s.L.length-s.fin.length}</td><td class="num" style="text-align:right">${money(s.ca)}</td>${kmActif()?`<td class="num" style="text-align:right">${s.kmN?kmTxt(s.km):"—"}</td><td class="num" style="text-align:right">${s.km>0?money(s.ca/s.km):"—"}</td>`:""}<td class="num">${s.mes?`${s.ret} / ${s.mes}`:"—"}</td><td class="num">${s.res}</td><td class="num">${s.inc}</td><td class="num">${s.fin.length-s.bl?`<span style="color:var(--danger);font-weight:700">${s.fin.length-s.bl}</span>`:"0"}</td></tr>`).join("")||`<tr><td colspan="11"><div class="empty">Aucun conducteur.</div></td></tr>`}</tbody></table></div>
     <span class="muted" style="font-size:12px">Cliquez sur un chauffeur pour voir le détail de ses courses. Retards : arrivées plus de ${TOL} minutes après l'heure prévue, sur le nombre d'arrivées mesurées.</span></div>`;
   } else { const s=actStats(k.id,P.from,P.to); const dates=Object.keys(s.jours).sort();
@@ -409,7 +412,7 @@ T.views.activite = () => {
     <div class="pan"><h2>Repos et absences — ${esc(P.txt)}</h2>
       <div><b>Jours de repos : ${s.repos.length}</b>${s.repos.length?` — ${esc(listeJours(s.repos))}`:""}</div>
       <div style="margin-top:6px"><b>Jours sans activité : ${s.sans.length}</b>${s.sans.length?` — ${esc(listeJours(s.sans))}`:""}</div>
-      <span class="muted" style="font-size:12px">Repos : jours saisis avec « Mettre en repos » dans le planning. Jours sans activité : du lundi au vendredi, sans course ni repos saisi (à vérifier : congé, absence…).</span></div>
+      <span class="muted" style="font-size:12px">Repos : jours saisis avec « Mettre en repos » dans le planning. Jours sans activité : du lundi au vendredi hors jours fériés, sans course ni repos saisi (à vérifier : congé, absence…).</span></div>
     <span class="muted" style="font-size:12px">Les heures sont celles validées par le chauffeur dans Dream Chauffeur. Ce relevé suit l'activité : il ne remplace pas le chronotachygraphe pour le temps de travail et de conduite.${kmActif()?" Les kilomètres sont ceux du trajet routier entre l'enlèvement et la livraison des courses terminées (hors approche et retour à vide).":""}</span>`; }
   return tete+`<div id="actBody" style="display:flex;flex-direction:column;gap:14px">${corps}</div>`;
 };
